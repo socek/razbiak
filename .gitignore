@@ -1,0 +1,5 @@
+*.img
+place
+*.sublime-*
+*.pyc
+*.pyo
