@@ -1,10 +1,12 @@
+# encoding: utf8
 from os import mkdir
 from shutil import copy
 
-from pymk.dependency import FileChanged, FileDoesNotExists
-from pymk.extra import run_cmd
+from pymk.dependency import FileChanged, FileDoesNotExists, AlwaysRebuild
+from pymk.extra import run
 from pymk.recipe import Recipe
 from pymk.task import Task
+from pymk.error import CommandAborted
 
 
 class Razbiak(Recipe):
@@ -27,6 +29,7 @@ class Razbiak(Recipe):
         self.set_path('mounted_innerfiles', ['%(mount_dir)s', 'inner'])
         self.set_path('mounted_innerfiles_mkfile', [
                       '%(mounted_innerfiles)s', 'mkfile.py'])
+        self.set_path('device', '/dev/mmcblk0')
 
 
 class CopyImage(Task):
@@ -82,7 +85,7 @@ class MountImage(Task):
     def build(self):
         data = dict(self.settings)
         data.update(self.paths)
-        run_cmd(
+        run(
             'sudo mount -o loop,offset=%(image_address)d %(destination_img)s %(mount_dir)s' % data)
 
 
@@ -98,8 +101,8 @@ class InnerDirectory(Task):
         return self.paths['mounted_innerfiles']
 
     def build(self):
-        run_cmd('sudo mkdir %s' % (self.output_file,))
-        run_cmd('sudo chmod 777 %s' % (self.output_file,))
+        run('sudo mkdir %s' % (self.output_file,))
+        run('sudo chmod 777 %s' % (self.output_file,))
 
 
 class CopyInnerFiles(Task):
@@ -119,4 +122,19 @@ class CopyInnerFiles(Task):
         return self.paths['mounted_innerfiles_mkfile']
 
     def build(self):
-        run_cmd('cp -r inner/* %s' % (InnerDirectory().output_file,))
+        run('cp -r inner/* %s' % (InnerDirectory().output_file,))
+
+class Deploy(Task):
+    name = 'deploy'
+
+    dependencys = [
+        CopyInnerFiles.dependency_Link(),
+        AlwaysRebuild(),
+    ]
+
+    def build(self):
+        data = raw_input('Are you sure you want to override %(device)s ? ' %self.paths)
+        if not data.strip().lower() == 'yes':
+            raise CommandAborted()
+        print 'Copying...'
+        run('sudo dd if=%(destination_img)s of=%(device)s' %self.paths)
