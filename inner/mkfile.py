@@ -1,14 +1,17 @@
 from os import mkdir
 
 from pymk.task import Task
-from pymk.modules import BaseRecipe
+from pymk.recipe import Recipe
+from pymk.dependency import AlwaysRebuild
 
 
-class RazbiakInnerRecipe(BaseRecipe):
+class RazbiakInnerRecipe(Recipe):
+
+    default_task = 'install'
 
     def create_settings(self):
         super(RazbiakInnerRecipe, self).create_settings()
-        self.settings['flags'] = 'flags'
+        self.set_path('flags', 'flags')
 
 
 class FlagsDir(Task):
@@ -17,7 +20,19 @@ class FlagsDir(Task):
 
     @property
     def output_file(self):
-        return self.settings['flags']
+        return self.paths['flags']
 
     def build(self):
         mkdir(self.output_file)
+
+
+class Install(Task):
+
+    name = 'install'
+    dependencys = [
+        FlagsDir.dependency_FileExists(),
+        AlwaysRebuild(),
+    ]
+
+    def build(self):
+        print 'building'

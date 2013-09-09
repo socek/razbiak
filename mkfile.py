@@ -1,31 +1,32 @@
-from os import mkdir, path
+from os import mkdir
 from shutil import copy
 
 from pymk.dependency import FileChanged, FileDoesNotExists
 from pymk.extra import run_cmd
-from pymk.modules import BaseRecipe
+from pymk.recipe import Recipe
 from pymk.task import Task
 
 
-class RazbiakRecipe(BaseRecipe):
+class Razbiak(Recipe):
+
+    default_task = 'install'
 
     def create_settings(self):
-        super(RazbiakRecipe, self).create_settings()
-        self.settings['source_img_path'] = 'source.img'
-        self.settings['destination_img_path'] = 'destination.img'
-        self.settings['mount_dir'] = 'place'
+        super(Razbiak, self).create_settings()
         self.settings['image'] = {
             'blocksize': 512,
             'partition_offset': 188416,
         }
         self.settings['image_address'] = self.settings['image'][
             'blocksize'] * self.settings['image']['partition_offset']
-        self.settings['mounted_path_test'] = path.join(
-            self.settings['mount_dir'], 'home')
-        self.settings['mounted_path_innerfiles'] = path.join(
-            self.settings['mount_dir'], 'inner')
-        self.settings['mounted_innerfile_mkfile'] = path.join(
-            self.settings['mounted_path_innerfiles'], 'mkfile.py')
+
+        self.set_path('source_img', 'source.img')
+        self.set_path('destination_img', 'destination.img')
+        self.set_path('mount_dir', 'place')
+        self.set_path('mounted_test', ['%(mount_dir)s', 'home'])
+        self.set_path('mounted_innerfiles', ['%(mount_dir)s', 'inner'])
+        self.set_path('mounted_innerfiles_mkfile', [
+                      '%(mounted_innerfiles)s', 'mkfile.py'])
 
 
 class CopyImage(Task):
@@ -34,20 +35,20 @@ class CopyImage(Task):
 
     @property
     def output_file(self):
-        return self.settings['destination_img_path']
+        return self.paths['destination_img']
 
     @property
     def dependencys(self):
         return [
-            FileChanged(self.settings['source_img_path']),
-            FileDoesNotExists(self.settings['destination_img_path']),
+            FileChanged(self.paths['source_img']),
+            FileDoesNotExists(self.paths['destination_img']),
         ]
 
     def build(self):
         print 'Copying...'
         copy(
-            self.settings['source_img_path'],
-            self.settings['destination_img_path'])
+            self.paths['source_img'],
+            self.paths['destination_img'])
 
 
 class CreateMountDir(Task):
@@ -57,7 +58,7 @@ class CreateMountDir(Task):
 
     @property
     def output_file(self):
-        return self.settings['mount_dir']
+        return self.paths['mount_dir']
 
     def build(self):
         mkdir(self.output_file)
@@ -69,7 +70,7 @@ class MountImage(Task):
 
     @property
     def output_file(self):
-        return self.settings['mounted_path_test']
+        return self.paths['mounted_test']
 
     @property
     def dependencys(self):
@@ -79,8 +80,10 @@ class MountImage(Task):
         ]
 
     def build(self):
+        data = dict(self.settings)
+        data.update(self.paths)
         run_cmd(
-            'sudo mount -o loop,offset=%(image_address)d %(destination_img_path)s %(mount_dir)s' % self.settings)
+            'sudo mount -o loop,offset=%(image_address)d %(destination_img)s %(mount_dir)s' % data)
 
 
 class InnerDirectory(Task):
@@ -92,7 +95,7 @@ class InnerDirectory(Task):
 
     @property
     def output_file(self):
-        return self.settings['mounted_path_innerfiles']
+        return self.paths['mounted_innerfiles']
 
     def build(self):
         run_cmd('sudo mkdir %s' % (self.output_file,))
@@ -106,13 +109,14 @@ class CopyInnerFiles(Task):
     @property
     def dependencys(self):
         return [
-            InnerDirectory.dependency_FileExists(),
+            InnerDirectory.dependency_FileChanged(),
+            FileChanged(['inner/mkfile.py', 'inner/makefile']),
             # FileDoesNotExists(self.output_file),
         ]
 
     @property
     def output_file(self):
-        return self.settings['mounted_innerfile_mkfile']
+        return self.paths['mounted_innerfiles_mkfile']
 
     def build(self):
         run_cmd('cp -r inner/* %s' % (InnerDirectory().output_file,))
