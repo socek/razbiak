@@ -30,6 +30,13 @@ class Razbiak(Recipe):
         self.set_path('mounted_innerfiles_mkfile', [
                       '%(mounted_innerfiles)s', 'mkfile.py'])
         self.set_path('device', '/dev/mmcblk0')
+        self.set_path('mounted_ssh_keys', [
+                      '%(mount_dir)s', 'root', '.ssh'
+                      ])
+        self.set_path('mounted_authorized_keys', [
+                      '%(mounted_ssh_keys)s', 'authorized_keys',
+                      ])
+        self.set_path('public_key', '~/.ssh/id_rsa.pub')
 
 
 class CopyImage(Task):
@@ -107,14 +114,11 @@ class InnerDirectory(Task):
 
 class CopyInnerFiles(Task):
 
-    name = 'install'
-
     @property
     def dependencys(self):
         return [
             InnerDirectory.dependency_FileChanged(),
             FileChanged(['inner/mkfile.py', 'inner/makefile']),
-            # FileDoesNotExists(self.output_file),
         ]
 
     @property
@@ -123,6 +127,38 @@ class CopyInnerFiles(Task):
 
     def build(self):
         run('cp -r inner/* %s' % (InnerDirectory().output_file,))
+
+
+class CreateSshDir(Task):
+    dependencys = [
+        CopyInnerFiles.dependency_FileExists(),
+    ]
+
+    @property
+    def output_file(self):
+        return self.paths['mounted_ssh_keys']
+
+    def build(self):
+        run('sudo mkdir %s' % (self.output_file,))
+        run('sudo chmod 700 %s' % (self.output_file,))
+
+
+class CopySshKeys(Task):
+
+    name = 'install'
+
+    dependencys = [
+        CreateSshDir.dependency_FileExists(),
+    ]
+
+    @property
+    def output_file(self):
+        return self.paths['mounted_authorized_keys']
+
+    def build(self):
+        run('sudo cp %(public_key)s %(mounted_authorized_keys)s' %self.paths)
+        run('sudo chmod 700 %s' % (self.output_file,))
+
 
 class Deploy(Task):
     name = 'deploy'
@@ -133,8 +169,9 @@ class Deploy(Task):
     ]
 
     def build(self):
-        data = raw_input('Are you sure you want to override %(device)s ? ' %self.paths)
+        data = raw_input(
+            'Are you sure you want to override %(device)s ? ' % self.paths)
         if not data.strip().lower() == 'yes':
             raise CommandAborted()
         print 'Copying...'
-        run('sudo dd if=%(destination_img)s of=%(device)s' %self.paths)
+        run('sudo dd if=%(destination_img)s of=%(device)s' % self.paths)
