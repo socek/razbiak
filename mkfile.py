@@ -21,6 +21,8 @@ class Razbiak(Recipe):
         }
         self.settings['image_address'] = self.settings['image'][
             'blocksize'] * self.settings['image']['partition_offset']
+        self.set_setting('pi_host', 'rouge')
+        self.set_setting('pi_login', 'root')
 
         self.set_path('source_img', 'source.img')
         self.set_path('destination_img', 'destination.img')
@@ -37,6 +39,8 @@ class Razbiak(Recipe):
                       '%(mounted_ssh_keys)s', 'authorized_keys',
                       ])
         self.set_path('public_key', '~/.ssh/id_rsa.pub')
+        self.set_path('remote_inner', '/inner/')
+        self.set_path('remote_initscript', ['%(remote_inner)s', 'initscript'])
 
 
 class CopyImage(Task):
@@ -156,7 +160,7 @@ class CopySshKeys(Task):
         return self.paths['mounted_authorized_keys']
 
     def build(self):
-        run('sudo cp %(public_key)s %(mounted_authorized_keys)s' %self.paths)
+        run('sudo cp %(public_key)s %(mounted_authorized_keys)s' % self.paths)
         run('sudo chmod 700 %s' % (self.output_file,))
 
 
@@ -175,3 +179,16 @@ class Deploy(Task):
             raise CommandAborted()
         print 'Copying...'
         run('sudo dd if=%(destination_img)s of=%(device)s' % self.paths)
+
+
+class RunViaSsh(Task):
+    name = 'ssh'
+
+    dependencys = [
+        AlwaysRebuild(),
+    ]
+
+    def build(self):
+        data = dict(self.settings)
+        data.update(self.paths)
+        print 'ssh %(pi_login)s@%(pi_host)s -t ".%(remote_initscript)s"' %data
