@@ -3,3 +3,5 @@ place
 *.sublime-*
 *.pyc
 *.pyo
+inner.old
+etc

@@ -1,0 +1,8 @@
+#!/bin/bash
+pushd /tmp/
+wget "https://github.com/socek/pymk/tarball/0.4v" -O pymk.tar.gz
+tar zxvf pymk.tar.gz
+cd `ls | grep socek-pymk`
+python2 setup.py install
+popd
+pymk
