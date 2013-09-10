@@ -1,8 +1,13 @@
 #!/bin/bash
-cd /tmp/
-wget "https://github.com/socek/pymk/tarball/0.4v" -O pymk.tar.gz
-tar zxvf pymk.tar.gz
-cd `ls | grep socek-pymk`
-python2 setup.py install
+which pymk &>/dev/null
+ER=$?
+if [ "$ER" != "0" ] ; then
+    cd /tmp/
+    wget "https://github.com/socek/pymk/tarball/0.4v" -O pymk.tar.gz
+    tar zxvf pymk.tar.gz
+    cd `ls | grep socek-pymk`
+    pacman -Sy python2 python2-setuptools --noconfirm
+    python2 setup.py install
+fi
 cd `dirname $0`
 pymk

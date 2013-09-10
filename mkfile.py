@@ -11,8 +11,6 @@ from pymk.error import CommandAborted
 
 class Razbiak(Recipe):
 
-    default_task = 'install'
-
     def create_settings(self):
         super(Razbiak, self).create_settings()
         self.settings['image'] = {
@@ -117,12 +115,13 @@ class InnerDirectory(Task):
 
 
 class CopyInnerFiles(Task):
+    hide = True
 
     @property
     def dependencys(self):
         return [
             InnerDirectory.dependency_FileChanged(),
-            FileChanged(['inner/mkfile.py', 'inner/makefile']),
+            FileChanged(['inner/mkfile.py', 'inner/initscript']),
         ]
 
     @property
@@ -134,9 +133,13 @@ class CopyInnerFiles(Task):
 
 
 class CreateSshDir(Task):
-    dependencys = [
-        CopyInnerFiles.dependency_FileExists(),
-    ]
+    hide = True
+
+    @property
+    def dependencys(self):
+        return [
+            CopyInnerFiles.dependency_FileExists(),
+        ]
 
     @property
     def output_file(self):
@@ -149,7 +152,7 @@ class CreateSshDir(Task):
 
 class CopySshKeys(Task):
 
-    name = 'install'
+    name = 'image'
 
     dependencys = [
         CreateSshDir.dependency_FileExists(),
@@ -168,7 +171,7 @@ class Deploy(Task):
     name = 'deploy'
 
     dependencys = [
-        CopyInnerFiles.dependency_Link(),
+        CopySshKeys.dependency_FileExists(),
         AlwaysRebuild(),
     ]
 
@@ -191,4 +194,4 @@ class RunViaSsh(Task):
     def build(self):
         data = dict(self.settings)
         data.update(self.paths)
-        print 'ssh %(pi_login)s@%(pi_host)s -t ".%(remote_initscript)s"' %data
+        run('ssh %(pi_login)s@%(pi_host)s -t "%(remote_initscript)s"' %data)
